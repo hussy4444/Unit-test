@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import base64
+import json
 from add_user_profile import get_secret , get_user_response_from_db,save_user_response_to_db, publish_home_view, send_message, decode_payload ,lambda_handler
 
 class TestGetSecret(unittest.TestCase):
@@ -162,35 +163,57 @@ class TestGetSecret(unittest.TestCase):
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)
 
+    
+    @patch("add_user_profile.get_secret")
+    @patch("add_user_profile.get_user_response_from_db")
+    @patch("add_user_profile.publish_home_view")
+    @patch("add_user_profile.send_message")
+    @patch("add_user_profile.save_user_response_to_db")
+    @patch("add_user_profile.decode_payload")
+    @patch.dict("os.environ", {"SECRET_NAME": "my-secret-name"})
+    def test_app_home_opened(self, mock_decode, mock_save, mock_send, mock_publish, mock_get_user_response, mock_get_secret):
+        """Test app_home_opened event from Slack."""
+        event = {
+            "body": json.dumps({
+                "type": "event_callback",
+                "event": {"type": "app_home_opened", "user": "U12345"}
+            }),
+            "isBase64Encoded": False
+        }
+
+        mock_get_secret.return_value = {"SLACK_BOT_TOKEN": "fake_token"}
+        mock_get_user_response.return_value = {"response": "Test response"}
+        mock_publish.return_value = {"ok": True}
+
+        response = lambda_handler(event, None)
+
+        self.assertEqual(response['statusCode'], 200)
+        self.assertEqual(response['body'], 'Home view published')
+        mock_get_user_response.assert_called_once_with("U12345")
+        mock_publish.assert_called_once_with("U12345", "fake_token", "Test response")
+
 
     @patch("add_user_profile.get_secret")
     @patch("add_user_profile.get_user_response_from_db")
     @patch("add_user_profile.publish_home_view")
     @patch("add_user_profile.send_message")
+    @patch("add_user_profile.save_user_response_to_db")
     @patch("add_user_profile.decode_payload")
     @patch.dict("os.environ", {"SECRET_NAME": "my-secret-name"})
-    def test_url_verification(self, mock_decode, mock_send_message, mock_publish, mock_get_user_response, mock_get_secret):
-        """Test URL verification event from Slack."""
-
-        # Prepare the event for URL verification
+    def test_invalid_payload(self, mock_decode, mock_save, mock_send, mock_publish, mock_get_user_response, mock_get_secret):
+        """Test invalid payload scenario where JSON parsing fails."""
         event = {
-            "body": '{"type": "url_verification", "challenge": "test_challenge"}',  # This needs to be a string that will be parsed into a dict
+            "body": "invalid_json",
             "isBase64Encoded": False
         }
 
-        # Mock the get_secret function
         mock_get_secret.return_value = {"SLACK_BOT_TOKEN": "fake_token"}
 
-        # Call the lambda_handler
         response = lambda_handler(event, None)
-        print("response",response)
 
-        # Assertions
-        self.assertEqual(response['statusCode'], 200)
-        self.assertEqual(response['body'], 'test_challenge')  # Verify that challenge is returned
-
-        # Ensure that get_secret was called to retrieve the bot token
-        mock_get_secret.assert_called_once_with("my-secret-name")
+        self.assertEqual(response['statusCode'], 400)
+        self.assertEqual(response['body'], 'Invalid payload')
+        mock_decode.assert_not_called()
 
 
 

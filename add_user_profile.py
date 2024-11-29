@@ -23,11 +23,13 @@ if not logger.handlers:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
+def dynamo_init():
+    dynamodb: DynamoDBServiceResource = boto3.resource('dynamodb')
+    table_name = os.getenv("SLACK_USER_RESPONSE")
+    print("table_name", table_name)
+    table = dynamodb.Table(table_name)
+    return table
 
-# Initialize DynamoDB client with type annotations
-# table_name = os.getenv("SLACK_USER_RESPONSE")
-# print("table_name", table_name)
-# table = dynamodb.Table(table_name)
 
 
 def get_secret(secret_name: str) -> Dict[str, str]:
@@ -38,10 +40,7 @@ def get_secret(secret_name: str) -> Dict[str, str]:
 
 
 def get_user_response_from_db(user_id: str) -> Optional[Dict[str, Any]]:
-    dynamodb: DynamoDBServiceResource = boto3.resource('dynamodb')
-    table_name = os.getenv("SLACK_USER_RESPONSE")
-    print("table_name", table_name)
-    table = dynamodb.Table(table_name)
+    table = dynamo_init()
     """Fetch user response from DynamoDB."""
     try:
         response = table.get_item(Key={"user_id": user_id})
@@ -52,10 +51,7 @@ def get_user_response_from_db(user_id: str) -> Optional[Dict[str, Any]]:
 
 
 def save_user_response_to_db(user_id: str, response: str) -> None:
-    dynamodb: DynamoDBServiceResource = boto3.resource('dynamodb')
-    table_name = os.getenv("SLACK_USER_RESPONSE")
-    print("table_name", table_name)
-    table = dynamodb.Table(table_name)
+    table = dynamo_init()
 
     """Save user response to DynamoDB."""
     try:
