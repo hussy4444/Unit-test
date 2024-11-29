@@ -1,0 +1,2 @@
+mypy_boto3_secretsmanager
+mypy_boto3_dynamodb
